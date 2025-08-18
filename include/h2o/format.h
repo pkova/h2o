@@ -22,7 +22,7 @@
 #ifndef h2o__format_h
 #define h2o__format_h
 
-#ifdef __GNUC__
+#if 0
 #define H2O_ATTRIBUTE_FORMAT_PRINTF(x,y) __attribute__((format(gnu_printf, x, y)))
 #define H2O_ATTRIBUTE_FORMAT_SCANF(x,y)  __attribute__((format(gnu_scanf, x, y)))
 #else
