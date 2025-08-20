@@ -32,7 +32,11 @@ extern "C" {
 #include <string.h>
 #include <stdlib.h>
 #include <sys/time.h>
+#ifdef _WIN32
+#include <winsock2.h>
+#else
 #include <sys/socket.h>
+#endif
 #include <time.h>
 #include <unistd.h>
 #include <openssl/ssl.h>

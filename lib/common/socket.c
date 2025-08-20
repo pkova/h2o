@@ -23,11 +23,18 @@
 #include <fcntl.h>
 #include <inttypes.h>
 #include <limits.h>
+#ifdef _WIN32
+#include <ws2tcpip.h>
+#include <pthread.h>
+#else
 #include <netdb.h>
 #include <netinet/in.h>
 #include <netinet/tcp.h>
+#endif
 #include <string.h>
+#ifndef H2O_NO_UNIX_SOCKETS
 #include <sys/un.h>
+#endif
 #include <unistd.h>
 #include <openssl/err.h>
 #if defined(__FreeBSD__) || defined(__NetBSD__) || defined(__OpenBSD__)
@@ -861,12 +868,7 @@ int h2o_socket_compare_address(struct sockaddr *x, struct sockaddr *y)
 
     CMP(x->sa_family, y->sa_family);
 
-    if (x->sa_family == AF_UNIX) {
-        struct sockaddr_un *xun = (void *)x, *yun = (void *)y;
-        int r = strcmp(xun->sun_path, yun->sun_path);
-        if (r != 0)
-            return r;
-    } else if (x->sa_family == AF_INET) {
+    if (x->sa_family == AF_INET) {
         struct sockaddr_in *xin = (void *)x, *yin = (void *)y;
         CMP(ntohl(xin->sin_addr.s_addr), ntohl(yin->sin_addr.s_addr));
         CMP(ntohs(xin->sin_port), ntohs(yin->sin_port));
@@ -878,6 +880,13 @@ int h2o_socket_compare_address(struct sockaddr *x, struct sockaddr *y)
         CMP(ntohs(xin6->sin6_port), ntohs(yin6->sin6_port));
         CMP(xin6->sin6_flowinfo, yin6->sin6_flowinfo);
         CMP(xin6->sin6_scope_id, yin6->sin6_scope_id);
+    #ifndef H2O_NO_UNIX_SOCKETS
+    } else if (x->sa_family == AF_UNIX) {
+        struct sockaddr_un *xun = (void *)x, *yun = (void *)y;
+        int r = strcmp(xun->sun_path, yun->sun_path);
+        if (r != 0)
+            return r;
+    #endif
     } else {
         assert(!"unknown sa_family");
     }
@@ -1015,7 +1024,7 @@ static void on_handshake_complete(h2o_socket_t *sock, const char *err)
 
 static void proceed_handshake(h2o_socket_t *sock, const char *err)
 {
-    h2o_iovec_t first_input = {NULL};
+    h2o_iovec_t first_input = H2O_IOVEC_NULL;
     int ret = 0;
 
     sock->_cb.write = NULL;

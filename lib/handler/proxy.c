@@ -19,7 +19,9 @@
  * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
  * IN THE SOFTWARE.
  */
+#ifndef H2O_NO_UNIX_SOCKETS
 #include <sys/un.h>
+#endif
 #include "h2o.h"
 #include "h2o/socketpool.h"
 
@@ -136,29 +138,37 @@ static void on_handler_dispose(h2o_handler_t *_self)
 
 void h2o_proxy_register_reverse_proxy(h2o_pathconf_t *pathconf, h2o_url_t *upstream, h2o_proxy_config_vars_t *config)
 {
-    struct sockaddr_un sa;
+    #ifndef H2O_NO_UNIX_SOCKETS
     const char *to_sa_err;
+    #endif
     struct rp_handler_t *self = (void *)h2o_create_handler(pathconf, sizeof(*self));
     self->super.on_context_init = on_context_init;
     self->super.on_context_dispose = on_context_dispose;
     self->super.dispose = on_handler_dispose;
     self->super.on_req = on_req;
-    to_sa_err = h2o_url_host_to_sun(upstream->host, &sa);
     if (config->keepalive_timeout != 0) {
         self->sockpool = h2o_mem_alloc(sizeof(*self->sockpool));
         int is_ssl = upstream->scheme == &H2O_URL_SCHEME_HTTPS;
+        #ifndef H2O_NO_UNIX_SOCKETS
+        struct sockaddr_un sa;
+        to_sa_err = h2o_url_host_to_sun(upstream->host, &sa);
         if (to_sa_err == h2o_url_host_to_sun_err_is_not_unix_socket) {
+        #endif
             h2o_socketpool_init_by_hostport(self->sockpool, upstream->host, h2o_url_get_port(upstream), is_ssl,
                                             SIZE_MAX /* FIXME */);
+        #ifndef H2O_NO_UNIX_SOCKETS
         } else {
             assert(to_sa_err == NULL);
             h2o_socketpool_init_by_address(self->sockpool, (void *)&sa, sizeof(sa), is_ssl, SIZE_MAX /* FIXME */);
         }
+        #endif
     }
     h2o_url_copy(NULL, &self->upstream, upstream);
+    #ifndef H2O_NO_UNIX_SOCKETS
     if (to_sa_err) {
         h2o_strtolower(self->upstream.host.base, self->upstream.host.len);
     }
+    #endif
     self->config = *config;
     if (self->config.ssl_ctx != NULL)
         SSL_CTX_up_ref(self->config.ssl_ctx);

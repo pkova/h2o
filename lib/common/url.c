@@ -19,15 +19,21 @@
  * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
  * IN THE SOFTWARE.
  */
+#ifdef _WIN32
+#include <ws2tcpip.h>
+#else
 #include <sys/socket.h>
+#endif
 #include <sys/types.h>
+#ifndef H2O_NO_UNIX_SOCKETS
 #include <sys/un.h>
+#endif
 #include "h2o/memory.h"
 #include "h2o/string_.h"
 #include "h2o/url.h"
 
-const h2o_url_scheme_t H2O_URL_SCHEME_HTTP = {{H2O_STRLIT("http")}, 80};
-const h2o_url_scheme_t H2O_URL_SCHEME_HTTPS = {{H2O_STRLIT("https")}, 443};
+const h2o_url_scheme_t H2O_URL_SCHEME_HTTP = {H2O_IOVEC_STRLIT("http"), 80};
+const h2o_url_scheme_t H2O_URL_SCHEME_HTTPS = {H2O_IOVEC_STRLIT("https"), 443};
 
 static int decode_hex(int ch)
 {
@@ -277,8 +283,8 @@ int h2o_url_parse_relative(const char *url, size_t url_len, h2o_url_t *parsed)
         return parse_authority_and_path(p + 2, url_end, parsed);
 
     /* reset authority, host, port, and set path */
-    parsed->authority = (h2o_iovec_t){NULL};
-    parsed->host = (h2o_iovec_t){NULL};
+    parsed->authority = (h2o_iovec_t)H2O_IOVEC_NULL;
+    parsed->host = (h2o_iovec_t)H2O_IOVEC_NULL;
     parsed->_port = 65535;
     parsed->path = h2o_iovec_init(p, url_end - p);
 
@@ -324,7 +330,7 @@ h2o_iovec_t h2o_url_resolve(h2o_mem_pool_t *pool, const h2o_url_t *base, const h
         h2o_url_resolve_path(&base_path, &relative_path);
     } else {
         assert(relative->path.len == 0);
-        relative_path = (h2o_iovec_t){NULL};
+        relative_path = (h2o_iovec_t)H2O_IOVEC_NULL;
     }
 
 Build:
@@ -388,6 +394,7 @@ void h2o_url_copy(h2o_mem_pool_t *pool, h2o_url_t *dest, const h2o_url_t *src)
     dest->_port = src->_port;
 }
 
+#ifndef H2O_NO_UNIX_SOCKETS
 const char *h2o_url_host_to_sun(h2o_iovec_t host, struct sockaddr_un *sa)
 {
 #define PREFIX "unix:"
@@ -407,3 +414,4 @@ const char *h2o_url_host_to_sun(h2o_iovec_t host, struct sockaddr_un *sa)
 }
 
 const char *h2o_url_host_to_sun_err_is_not_unix_socket = "supplied name does not look like an unix-domain socket";
+#endif

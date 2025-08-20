@@ -246,7 +246,7 @@ h2o_hostconf_t *h2o_config_register_host(h2o_globalconf_t *config, h2o_iovec_t h
     /* create hostconf */
     hostconf = create_hostconf(config);
     hostconf->authority.host = host_lc;
-    host_lc = (h2o_iovec_t){NULL};
+    host_lc = (h2o_iovec_t)H2O_IOVEC_NULL;
     hostconf->authority.port = port;
     if (hostconf->authority.port == 65535) {
         hostconf->authority.hostport = hostconf->authority.host;

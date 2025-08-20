@@ -22,7 +22,9 @@
 #include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
+#ifndef _WIN32
 #include <sys/uio.h>
+#endif
 #include "h2o.h"
 
 #ifndef IOV_MAX
@@ -595,10 +597,16 @@ void h2o_req_log_error(h2o_req_t *req, const char *module, const char *fmt, ...)
             p += 3;
         }
         *p++ = ':';
+        #ifdef _WIN32
+        write(2, prefix, p - prefix);
+        write(2, errbuf, errlen);
+        write(2, "\n", 1);
+        #else
         /* use writev(2) to emit error atomically */
         struct iovec vecs[] = {{prefix, p - prefix}, {errbuf, errlen}, {"\n", 1}};
         H2O_BUILD_ASSERT(sizeof(vecs) / sizeof(vecs[0]) < IOV_MAX);
         writev(2, vecs, sizeof(vecs) / sizeof(vecs[0]));
+        #endif
     }
 }
 
@@ -611,8 +619,8 @@ void h2o_send_redirect(h2o_req_t *req, int status, const char *reason, const cha
     }
 
     static h2o_generator_t generator = {NULL, NULL};
-    static const h2o_iovec_t body_prefix = {H2O_STRLIT("<!DOCTYPE html><TITLE>Moved</TITLE><P>The document has moved <A HREF=\"")};
-    static const h2o_iovec_t body_suffix = {H2O_STRLIT("\">here</A>")};
+    static const h2o_iovec_t body_prefix = H2O_IOVEC_STRLIT("<!DOCTYPE html><TITLE>Moved</TITLE><P>The document has moved <A HREF=\"");
+    static const h2o_iovec_t body_suffix = H2O_IOVEC_STRLIT("\">here</A>");
 
     /* build and send response */
     h2o_iovec_t bufs[3];

@@ -27,7 +27,7 @@
 #include "h2o/http2.h"
 #include "h2o/http2_internal.h"
 
-static const h2o_iovec_t CONNECTION_PREFACE = {H2O_STRLIT("PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n")};
+static const h2o_iovec_t CONNECTION_PREFACE = H2O_IOVEC_STRLIT("PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n");
 
 const h2o_http2_priority_t h2o_http2_default_priority = {
     0, /* exclusive */
@@ -43,7 +43,7 @@ const h2o_http2_settings_t H2O_HTTP2_SETTINGS_HOST = {
     16384     /* max_frame_size */
 };
 
-static const h2o_iovec_t SETTINGS_HOST_BIN = {H2O_STRLIT("\x00\x00\x0c"     /* frame size */
+static const h2o_iovec_t SETTINGS_HOST_BIN = H2O_IOVEC_STRLIT("\x00\x00\x0c"/* frame size */
                                                          "\x04"             /* settings frame */
                                                          "\x00"             /* no flags */
                                                          "\x00\x00\x00\x00" /* stream id */
@@ -51,7 +51,7 @@ static const h2o_iovec_t SETTINGS_HOST_BIN = {H2O_STRLIT("\x00\x00\x0c"     /* f
                                                          "\x00\x00\x00\x64" /* max_concurrent_streams = 100 */
                                                          "\x00\x04"
                                                          "\x01\x00\x00\x00" /* initial_window_size = 16777216 */
-                                                         )};
+                                                         );
 
 static __thread h2o_buffer_prototype_t wbuf_buffer_prototype = {{16}, {H2O_HTTP2_DEFAULT_OUTBUF_SIZE}};
 
@@ -104,7 +104,7 @@ static void graceful_shutdown_resend_goaway(h2o_timeout_entry_t *entry)
     for (node = ctx->http2._conns.next; node != &ctx->http2._conns; node = node->next) {
         h2o_http2_conn_t *conn = H2O_STRUCT_FROM_MEMBER(h2o_http2_conn_t, _conns, node);
         if (conn->state < H2O_HTTP2_CONN_STATE_HALF_CLOSED) {
-            enqueue_goaway(conn, H2O_HTTP2_ERROR_NONE, (h2o_iovec_t){NULL});
+            enqueue_goaway(conn, H2O_HTTP2_ERROR_NONE, (h2o_iovec_t)H2O_IOVEC_NULL);
             do_close_stragglers = 1;
         }
     }
@@ -136,7 +136,7 @@ static void initiate_graceful_shutdown(h2o_context_t *ctx)
         h2o_http2_conn_t *conn = H2O_STRUCT_FROM_MEMBER(h2o_http2_conn_t, _conns, node);
         if (conn->state < H2O_HTTP2_CONN_STATE_HALF_CLOSED) {
             h2o_http2_encode_goaway_frame(&conn->_write.buf, INT32_MAX, H2O_HTTP2_ERROR_NONE,
-                                          (h2o_iovec_t){H2O_STRLIT("graceful shutdown")});
+                                          (h2o_iovec_t)H2O_IOVEC_STRLIT("graceful shutdown"));
             h2o_http2_conn_request_write(conn);
         }
     }
@@ -882,7 +882,7 @@ static int parse_input(h2o_http2_conn_t *conn)
         } else if (ret < 0) {
             if (ret != H2O_HTTP2_ERROR_PROTOCOL_CLOSE_IMMEDIATELY) {
                 enqueue_goaway(conn, (int)ret,
-                               err_desc != NULL ? (h2o_iovec_t){(char *)err_desc, strlen(err_desc)} : (h2o_iovec_t){NULL});
+                               err_desc != NULL ? h2o_iovec_init((char *)err_desc, strlen(err_desc)) : (h2o_iovec_t)H2O_IOVEC_NULL);
             }
             return close_connection(conn);
         }
@@ -1067,7 +1067,7 @@ void do_emit_writereq(h2o_http2_conn_t *conn)
 
     if (conn->_write.buf->size != 0) {
         /* write and wait for completion */
-        h2o_iovec_t buf = {conn->_write.buf->bytes, conn->_write.buf->size};
+        h2o_iovec_t buf = h2o_iovec_init(conn->_write.buf->bytes, conn->_write.buf->size);
         h2o_socket_write(conn->sock, &buf, 1, on_write_complete);
         conn->_write.buf_in_flight = conn->_write.buf;
         h2o_buffer_init(&conn->_write.buf, &wbuf_buffer_prototype);
@@ -1311,7 +1311,7 @@ static void push_path(h2o_req_t *src_req, const char *abspath, size_t abspath_le
     h2o_http2_stream_prepare_for_request(conn, stream);
 
     /* setup request */
-    stream->req.input.method = (h2o_iovec_t){H2O_STRLIT("GET")};
+    stream->req.input.method = (h2o_iovec_t)H2O_IOVEC_STRLIT("GET");
     stream->req.input.scheme = src_stream->req.input.scheme;
     stream->req.input.authority =
         h2o_strdup(&stream->req.pool, src_stream->req.input.authority.base, src_stream->req.input.authority.len);

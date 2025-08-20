@@ -69,6 +69,18 @@ OPTION(WITH_BUNDLED_SSL "whether or not to use the bundled libressl" ${WITH_BUND
 
 OPTION(WITHOUT_LIBS "skip building libs even when possible" OFF)
 OPTION(BUILD_SHARED_LIBS "whether to build a shared library" OFF)
+OPTION(WITHOUT_FASTCGI "don't include fastcgi" OFF)
+OPTION(WITHOUT_MEMCACHED "don't include memcached" OFF)
+
+IF (MINGW)
+    SET(WITHOUT_FASTCGI "ON")
+    SET(WITHOUT_MEMCACHED "ON")
+    SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -D_POSIX_C_SOURCE -DO_CLOEXEC=0 -DH2O_NO_UNIX_SOCKETS")
+ENDIF (MINGW)
+
+IF (WITHOUT_MEMCACHED)
+    SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DH2O_NO_MEMCACHED")
+ENDIF (WITHOUT_MEMCACHED)
 
 FIND_PROGRAM(RUBY ruby)
 FIND_PROGRAM(BISON bison)
@@ -228,16 +240,7 @@ SET(PICOTLS_SOURCE_FILES
     deps/picotls/lib/openssl.c)
 
 SET(LIB_SOURCE_FILES
-    deps/cloexec/cloexec.c
     deps/libgkc/gkc.c
-    deps/libyrmcds/close.c
-    deps/libyrmcds/connect.c
-    deps/libyrmcds/recv.c
-    deps/libyrmcds/send.c
-    deps/libyrmcds/send_text.c
-    deps/libyrmcds/socket.c
-    deps/libyrmcds/strerror.c
-    deps/libyrmcds/text_mode.c
     deps/picohttpparser/picohttpparser.c
 
     lib/common/cache.c
@@ -245,7 +248,6 @@ SET(LIB_SOURCE_FILES
     lib/common/filecache.c
     lib/common/hostinfo.c
     lib/common/http1client.c
-    lib/common/memcached.c
     lib/common/memory.c
     lib/common/multithread.c
     lib/common/serverutil.c
@@ -272,7 +274,6 @@ SET(LIB_SOURCE_FILES
     lib/handler/compress/gzip.c
     lib/handler/errordoc.c
     lib/handler/expires.c
-    lib/handler/fastcgi.c
     lib/handler/file.c
     lib/handler/headers.c
     lib/handler/mimemap.c
@@ -290,7 +291,6 @@ SET(LIB_SOURCE_FILES
     lib/handler/configurator/compress.c
     lib/handler/configurator/errordoc.c
     lib/handler/configurator/expires.c
-    lib/handler/configurator/fastcgi.c
     lib/handler/configurator/file.c
     lib/handler/configurator/headers.c
     lib/handler/configurator/proxy.c
@@ -313,6 +313,33 @@ SET(LIB_SOURCE_FILES
     lib/http2/scheduler.c
     lib/http2/stream.c
     lib/http2/http2_debug_state.c)
+
+IF (NOT MINGW)
+    SET(LIB_SOURCE_FILES
+        ${LIB_SOURCE_FILES}
+        deps/cloexec/cloexec.c)
+ENDIF (NOT MINGW)
+
+IF (NOT WITHOUT_FASTCGI)
+    SET(LIB_SOURCE_FILES
+        ${LIB_SOURCE_FILES}
+        lib/handler/fastcgi.c
+        lib/handler/configurator/fastcgi.c)
+ENDIF (NOT WITHOUT_FASTCGI)
+
+IF (NOT WITHOUT_MEMCACHED)
+    SET(LIB_SOURCE_FILES
+        ${LIB_SOURCE_FILES}
+        deps/libyrmcds/close.c
+        deps/libyrmcds/connect.c
+        deps/libyrmcds/recv.c
+        deps/libyrmcds/send.c
+        deps/libyrmcds/send_text.c
+        deps/libyrmcds/socket.c
+        deps/libyrmcds/strerror.c
+        deps/libyrmcds/text_mode.c
+        lib/common/memcached.c)
+ENDIF (NOT WITHOUT_MEMCACHED)
 
 SET(UNIT_TEST_SOURCE_FILES
     ${LIB_SOURCE_FILES}

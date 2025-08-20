@@ -63,6 +63,7 @@ static void free_accept_data(struct st_h2o_accept_data_t *data)
     free(data);
 }
 
+#ifndef H2O_NO_MEMCACHED
 static struct {
     h2o_memcached_context_t *memc;
     unsigned expiration;
@@ -97,15 +98,18 @@ void h2o_accept_setup_async_ssl_resumption(h2o_memcached_context_t *memc, unsign
     async_resumption_context.expiration = expiration;
     h2o_socket_ssl_async_resumption_init(async_resumption_get, async_resumption_new);
 }
+#endif
 
 void on_accept_timeout(h2o_timeout_entry_t *entry)
 {
     /* TODO log */
     struct st_h2o_accept_data_t *data = H2O_STRUCT_FROM_MEMBER(struct st_h2o_accept_data_t, timeout, entry);
+    #ifndef H2O_NO_MEMCACHED
     if (data->async_resumption_get_req != NULL) {
         h2o_memcached_cancel_get(async_resumption_context.memc, data->async_resumption_get_req);
         data->async_resumption_get_req = NULL;
     }
+    #endif
     h2o_socket_t *sock = data->sock;
     free_accept_data(data);
     h2o_socket_close(sock);
@@ -158,7 +162,11 @@ static ssize_t parse_proxy_line(char *src, size_t len, struct sockaddr *sa, sock
 
     char *p = src, *end = p + len;
     void *addr;
+    #if _WIN32
+    u_short *port;
+    #else
     in_port_t *port;
+    #endif
 
     /* "PROXY "*/
     EXPECT_CHAR('P');
@@ -369,7 +377,7 @@ static void push_one_path(h2o_mem_pool_t *pool, h2o_iovec_vector_t *paths_to_pus
     }
 
     /* check scheme and authority if given URL contains either of the two, or if base is specified */
-    h2o_url_t base = {input_scheme, input_authority, {NULL}, base_path, 65535};
+    h2o_url_t base = {input_scheme, input_authority, H2O_IOVEC_NULL, base_path, 65535};
     if (base_scheme != NULL) {
         base.scheme = base_scheme;
         base.authority = *base_authority;
@@ -528,7 +536,7 @@ h2o_iovec_t h2o_build_destination(h2o_req_t *req, const char *prefix, size_t pre
             if (req->path.base[0] != '/' && next_unnormalized == 1) {
                 next_unnormalized = 0;
             }
-            parts[num_parts++] = (h2o_iovec_t){req->path.base + next_unnormalized, req->path.len - next_unnormalized};
+            parts[num_parts++] = h2o_iovec_init(req->path.base + next_unnormalized, req->path.len - next_unnormalized);
         }
     }
 
@@ -536,10 +544,7 @@ h2o_iovec_t h2o_build_destination(h2o_req_t *req, const char *prefix, size_t pre
 }
 
 /* h2-14 and h2-16 are kept for backwards compatibility, as they are often used */
-#define ALPN_ENTRY(s)                                                                                                              \
-    {                                                                                                                              \
-        H2O_STRLIT(s)                                                                                                              \
-    }
+#define ALPN_ENTRY(s) H2O_IOVEC_STRLIT(s)
 #define ALPN_PROTOCOLS_CORE ALPN_ENTRY("h2"), ALPN_ENTRY("h2-16"), ALPN_ENTRY("h2-14")
 #define NPN_PROTOCOLS_CORE                                                                                                         \
     "\x02"                                                                                                                         \
@@ -549,10 +554,10 @@ h2o_iovec_t h2o_build_destination(h2o_req_t *req, const char *prefix, size_t pre
     "\x05"                                                                                                                         \
     "h2-14"
 
-static const h2o_iovec_t http2_alpn_protocols[] = {ALPN_PROTOCOLS_CORE, {NULL}};
+static const h2o_iovec_t http2_alpn_protocols[] = {ALPN_PROTOCOLS_CORE, H2O_IOVEC_NULL};
 const h2o_iovec_t *h2o_http2_alpn_protocols = http2_alpn_protocols;
 
-static const h2o_iovec_t alpn_protocols[] = {ALPN_PROTOCOLS_CORE, {H2O_STRLIT("http/1.1")}, {NULL}};
+static const h2o_iovec_t alpn_protocols[] = {ALPN_PROTOCOLS_CORE, H2O_IOVEC_STRLIT("http/1.1"), H2O_IOVEC_NULL};
 const h2o_iovec_t *h2o_alpn_protocols = alpn_protocols;
 
 const char *h2o_http2_npn_protocols = NPN_PROTOCOLS_CORE;

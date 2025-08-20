@@ -323,7 +323,7 @@ static ssize_t fixup_request(struct st_h2o_http1_conn_t *conn, struct phr_header
                              h2o_iovec_t *expect)
 {
     ssize_t entity_header_index;
-    h2o_iovec_t connection = {NULL, 0}, host = {NULL, 0}, upgrade = {NULL, 0};
+    h2o_iovec_t connection = H2O_IOVEC_NULL, host = H2O_IOVEC_NULL, upgrade = H2O_IOVEC_NULL;
 
     expect->base = NULL;
     expect->len = 0;
@@ -406,12 +406,12 @@ static void send_bad_request_on_complete(h2o_socket_t *sock, const char *err)
 
 static void send_bad_request(struct st_h2o_http1_conn_t *conn)
 {
-    const static h2o_iovec_t resp = {H2O_STRLIT("HTTP/1.1 400 Bad Request\r\n"
+    const static h2o_iovec_t resp = H2O_IOVEC_STRLIT("HTTP/1.1 400 Bad Request\r\n"
                                                 "Content-Type: text/plain; charset=utf-8\r\n"
                                                 "Connection: close\r\n"
                                                 "Content-Length: 11\r\n"
                                                 "\r\n"
-                                                "Bad Request")};
+                                                "Bad Request");
 
     assert(conn->req.version == 0 && "request has not been parsed successfully");
     assert(conn->req.http1_is_persistent == 0);
@@ -421,7 +421,7 @@ static void send_bad_request(struct st_h2o_http1_conn_t *conn)
 
 static void handle_incoming_request(struct st_h2o_http1_conn_t *conn)
 {
-    size_t inreqlen = conn->sock->input->size < H2O_MAX_REQLEN ? conn->sock->input->size : H2O_MAX_REQLEN;
+    size_t methodlen, pathlen, inreqlen = conn->sock->input->size < H2O_MAX_REQLEN ? conn->sock->input->size : H2O_MAX_REQLEN;
     int reqlen, minor_version;
     struct phr_header headers[H2O_MAX_HEADERS];
     size_t num_headers = H2O_MAX_HEADERS;
@@ -433,8 +433,10 @@ static void handle_incoming_request(struct st_h2o_http1_conn_t *conn)
         conn->req.timestamps.request_begin_at = *h2o_get_timestamp(conn->super.ctx, NULL, NULL);
 
     reqlen = phr_parse_request(conn->sock->input->bytes, inreqlen, (const char **)&conn->req.input.method.base,
-                               &conn->req.input.method.len, (const char **)&conn->req.input.path.base, &conn->req.input.path.len,
+                               &methodlen, (const char **)&conn->req.input.path.base, &pathlen,
                                &minor_version, headers, &num_headers, conn->_prevreqlen);
+    conn->req.input.method.len = methodlen;
+    conn->req.input.path.len = pathlen;
     conn->_prevreqlen = inreqlen;
 
     switch (reqlen) {
@@ -455,7 +457,7 @@ static void handle_incoming_request(struct st_h2o_http1_conn_t *conn)
                 return;
             }
             if (expect.base != NULL) {
-                static const h2o_iovec_t res = {H2O_STRLIT("HTTP/1.1 100 Continue\r\n\r\n")};
+                static const h2o_iovec_t res = H2O_IOVEC_STRLIT("HTTP/1.1 100 Continue\r\n\r\n");
                 h2o_socket_write(conn->sock, (void *)&res, 1, on_continue_sent);
                 /* processing of the incoming entity is postponed until the 100 response is sent */
                 h2o_socket_read_stop(conn->sock);
@@ -477,7 +479,7 @@ static void handle_incoming_request(struct st_h2o_http1_conn_t *conn)
         /* upgrade to HTTP/2 if the request starts with: PRI * HTTP/2 */
         if (conn->super.ctx->globalconf->http1.upgrade_to_http2) {
             /* should check up to the first octet that phr_parse_request returns an error */
-            static const h2o_iovec_t HTTP2_SIG = {H2O_STRLIT("PRI * HTTP/2")};
+            static const h2o_iovec_t HTTP2_SIG = H2O_IOVEC_STRLIT("PRI * HTTP/2");
             if (conn->sock->input->size >= HTTP2_SIG.len && memcmp(conn->sock->input->bytes, HTTP2_SIG.base, HTTP2_SIG.len) == 0) {
                 h2o_accept_ctx_t accept_ctx = {conn->super.ctx, conn->super.hosts};
                 h2o_socket_t *sock = conn->sock;
@@ -638,7 +640,7 @@ static size_t flatten_headers(char *buf, h2o_req_t *req, const char *connection)
                  * - https://www.igvita.com/2013/05/01/deploying-webp-via-accept-content-negotiation/
                  */
                 if (is_msie(req)) {
-                    static h2o_header_t cache_control_private = {&H2O_TOKEN_CACHE_CONTROL->buf, NULL, {H2O_STRLIT("private")}};
+                    static h2o_header_t cache_control_private = {&H2O_TOKEN_CACHE_CONTROL->buf, NULL, H2O_IOVEC_STRLIT("private")};
                     header = &cache_control_private;
                 }
             }
@@ -660,11 +662,11 @@ static size_t flatten_headers(char *buf, h2o_req_t *req, const char *connection)
 
 static void proceed_pull(struct st_h2o_http1_conn_t *conn, size_t nfilled)
 {
-    h2o_iovec_t buf = {conn->_ostr_final.pull.buf, nfilled};
+    h2o_iovec_t buf = h2o_iovec_init(conn->_ostr_final.pull.buf, nfilled);
     h2o_send_state_t send_state;
 
     if (buf.len < MAX_PULL_BUF_SZ) {
-        h2o_iovec_t cbuf = {buf.base + buf.len, MAX_PULL_BUF_SZ - buf.len};
+        h2o_iovec_t cbuf = h2o_iovec_init(buf.base + buf.len, MAX_PULL_BUF_SZ - buf.len);
         send_state = h2o_pull(&conn->req, conn->_ostr_final.pull.cb, &cbuf);
         if (send_state == H2O_SEND_STATE_ERROR) {
             conn->req.http1_is_persistent = 0;

@@ -21,26 +21,30 @@
  */
 #include <errno.h>
 #include <fcntl.h>
+#ifndef _WIN32
 #include <grp.h>
-#include <pthread.h>
 #include <pwd.h>
-#include <signal.h>
 #include <spawn.h>
+#include <sys/wait.h>
+#if !defined(_SC_NPROCESSORS_ONLN)
+#include <sys/sysctl.h>
+#endif
+#endif
+#include <pthread.h>
+#include <signal.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/types.h>
-#include <sys/wait.h>
 #include <unistd.h>
-#if !defined(_SC_NPROCESSORS_ONLN)
-#include <sys/sysctl.h>
-#endif
-#include "cloexec.h"
 #include "h2o/memory.h"
 #include "h2o/serverutil.h"
 #include "h2o/socket.h"
 #include "h2o/string_.h"
-
+#if !H2O_USE_LIBUV
+#include "cloexec.h"
+#endif
+#if 0
 void h2o_set_signal_handler(int signo, void (*cb)(int signo))
 {
     struct sigaction action;
@@ -137,6 +141,7 @@ static char **build_spawn_env(void)
     return newenv;
 }
 
+#ifndef _WIN32
 pid_t h2o_spawnp(const char *cmd, char *const *argv, const int *mapped_fds, int cloexec_mutex_is_locked)
 {
 #if defined(__linux__)
@@ -235,6 +240,7 @@ Error:
 
 #endif
 }
+#endif
 
 int h2o_read_command(const char *cmd, char **argv, h2o_buffer_t **resp, int *child_status)
 {
@@ -315,3 +321,4 @@ size_t h2o_numproc(void)
     return 1;
 #endif
 }
+#endif

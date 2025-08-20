@@ -19,10 +19,14 @@
  * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
  * IN THE SOFTWARE.
  */
-#include <netdb.h>
 #include <stdio.h>
 #include <stdlib.h>
+#ifdef _WIN32
+#include <ws2tcpip.h>
+#else
+#include <netdb.h>
 #include <sys/socket.h>
+#endif
 #include "picohttpparser.h"
 #include "h2o.h"
 #include "h2o/http1.h"
@@ -79,7 +83,7 @@ static h2o_iovec_t rewrite_location(h2o_mem_pool_t *pool, const char *location, 
                       h2o_iovec_init(loc_parsed.path.base + match->path.len, loc_parsed.path.len - match->path.len));
 
 NoRewrite:
-    return (h2o_iovec_t){NULL};
+    return (h2o_iovec_t)H2O_IOVEC_NULL;
 }
 
 static h2o_iovec_t build_request_merge_headers(h2o_mem_pool_t *pool, h2o_iovec_t merged, h2o_iovec_t added, int seperator)
@@ -136,7 +140,7 @@ static h2o_iovec_t build_request(h2o_req_t *req, int keepalive, int is_websocket
     char remote_addr[NI_MAXHOST];
     struct sockaddr_storage ss;
     socklen_t sslen;
-    h2o_iovec_t cookie_buf = {NULL}, xff_buf = {NULL}, via_buf = {NULL};
+    h2o_iovec_t cookie_buf = H2O_IOVEC_NULL, xff_buf = H2O_IOVEC_NULL, via_buf = H2O_IOVEC_NULL;
     int preserve_x_forwarded_proto = req->conn->ctx->globalconf->proxy.preserve_x_forwarded_proto;
     int emit_x_forwarded_headers = req->conn->ctx->globalconf->proxy.emit_x_forwarded_headers;
     int emit_via_header = req->conn->ctx->globalconf->proxy.emit_via_header;
@@ -202,7 +206,7 @@ static h2o_iovec_t build_request(h2o_req_t *req, int keepalive, int is_websocket
     assert(offset <= buf.len);
     if (req->entity.base != NULL || req_requires_content_length(req)) {
         RESERVE(sizeof("content-length: " H2O_UINT64_LONGEST_STR) - 1);
-        offset += sprintf(buf.base + offset, "content-length: %zu\r\n", req->entity.len);
+        offset += sprintf(buf.base + offset, "content-length: %zu\r\n", (size_t)req->entity.len);
     }
 
     /* rewrite headers if necessary */

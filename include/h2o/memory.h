@@ -78,8 +78,19 @@ typedef struct st_h2o_buffer_prototype_t h2o_buffer_prototype_t;
  * buffer structure compatible with iovec
  */
 typedef struct st_h2o_iovec_t {
+#ifdef __MINGW32__
+#define H2O_IOVEC_NULL      {0, NULL}
+#define H2O_IOVEC_EMPTY     {0, ""}
+#define H2O_IOVEC_STRLIT(s) {sizeof(s) - 1, (s)}
+    unsigned int len;
+    char *base;
+#else
+#define H2O_IOVEC_NULL      {NULL}
+#define H2O_IOVEC_EMPTY     {"", 0}
+#define H2O_IOVEC_STRLIT(s) {(s), sizeof(s) - 1}
     char *base;
     size_t len;
+#endif
 } h2o_iovec_t;
 
 typedef struct st_h2o_mem_recycle_t {

@@ -21,12 +21,18 @@
  */
 #include <assert.h>
 #include <errno.h>
+#ifdef _WIN32
+#include <ws2tcpip.h>
+#else
 #include <netdb.h>
+#include <netinet/in.h>
 #include <stdlib.h>
 #include <sys/socket.h>
+#endif
 #include <sys/types.h>
+#ifndef H2O_NO_UNIX_SOCKETS
 #include <sys/un.h>
-#include <netinet/in.h>
+#endif
 #include "h2o/hostinfo.h"
 #include "h2o/linklist.h"
 #include "h2o/socketpool.h"
@@ -110,11 +116,15 @@ void h2o_socketpool_init_by_address(h2o_socketpool_t *pool, struct sockaddr *sa,
     assert(salen <= sizeof(pool->peer.sockaddr.bytes));
 
     if ((host_len = h2o_socket_getnumerichost(sa, salen, host)) == SIZE_MAX) {
+        #ifndef H2O_NO_UNIX_SOCKETS
         if (sa->sa_family != AF_UNIX)
             h2o_fatal("failed to convert a non-unix socket address to a numerical representation");
         /* use the sockaddr_un::sun_path as the SNI indicator (is that the right thing to do?) */
         strcpy(host, ((struct sockaddr_un *)sa)->sun_path);
         host_len = strlen(host);
+        #else
+        h2o_fatal("failed to convert a socket address to a numerical representation");
+        #endif
     }
 
     common_init(pool, H2O_SOCKETPOOL_TYPE_SOCKADDR, h2o_iovec_init(host, host_len), is_ssl, capacity);

@@ -22,12 +22,16 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <inttypes.h>
+#include <stdio.h>
+#include <stdlib.h>
+#ifdef _WIN32
+#include <ws2tcpip.h>
+#else
 #include <netdb.h>
 #include <netinet/in.h>
 #include <spawn.h>
-#include <stdio.h>
-#include <stdlib.h>
 #include <sys/socket.h>
+#endif
 #include <sys/types.h>
 #include "h2o.h"
 #include "h2o/serverutil.h"
@@ -73,6 +77,7 @@ int h2o_access_log_open_log(const char *path)
 {
     int fd;
 
+    #ifndef _WIN32
     if (path[0] == '|') {
         int pipefds[2];
         pid_t pid;
@@ -96,7 +101,9 @@ int h2o_access_log_open_log(const char *path)
         /* close the read side of the pipefds and return the write side */
         close(pipefds[0]);
         fd = pipefds[1];
-    } else {
+    } else
+    #endif
+    {
         if ((fd = open(path, O_CREAT | O_WRONLY | O_APPEND | O_CLOEXEC, 0644)) == -1) {
             fprintf(stderr, "failed to open log file:%s:%s\n", path, strerror(errno));
             return -1;
