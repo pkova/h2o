@@ -165,7 +165,7 @@ int do_export(h2o_socket_t *_sock, h2o_socket_export_t *info)
      * events may be reported for that file descriptor if other file descriptors
      * referring to the same underlying file description remain open"
      */
-    if ((info->fd = dup(fd)) == -1)
+    if ((info->fd = dup((int)fd)) == -1)
         return -1;
     return 0;
 }
